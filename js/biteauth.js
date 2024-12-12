@@ -1,6 +1,7 @@
 (function() {
     class SPAAuth {
       constructor() {
+        console.log('🔐 SPAAuth: Initializing authentication system');
         this.protectedRoutes = [];
         this.initializeAuth();
       }
@@ -8,22 +9,26 @@
       // Initialize authentication
       initializeAuth() {
         this.fetchProtectedRoutes()
-          .then(() => this.checkInitialRouteAccess())
+          .then(() => {
+            console.log('🌐 SPAAuth: Protected routes loaded:', this.protectedRoutes);
+            this.checkInitialRouteAccess();
+          })
           .catch(error => {
-            console.error('Failed to set up route protection:', error);
+            console.error('❌ SPAAuth: Failed to set up route protection:', error);
           });
       }
   
       // Fetch protected routes from server
       async fetchProtectedRoutes() {
         try {
-          const response = await fetch('https://biteauth.vercel.app/api/protected-routes');
+          console.log('🔍 SPAAuth: Fetching protected routes...');
+          const response = await fetch('/api/protected-routes');
           if (!response.ok) {
             throw new Error('Failed to fetch protected routes');
           }
           this.protectedRoutes = await response.json();
         } catch (error) {
-          console.error('Error fetching protected routes:', error);
+          console.error('❌ SPAAuth: Error fetching protected routes:', error);
           this.protectedRoutes = [];
         }
       }
@@ -31,6 +36,8 @@
       // Check initial route access
       checkInitialRouteAccess() {
         const currentPath = window.location.pathname;
+        console.log(`📍 SPAAuth: Checking access for current path: ${currentPath}`);
+  
         const isProtectedRoute = this.protectedRoutes.some(route => 
           currentPath.startsWith(route)
         );
@@ -39,11 +46,16 @@
         if (isProtectedRoute) {
           const token = localStorage.getItem('auth_token');
           
+          console.log(`🔒 SPAAuth: Route is protected. Token exists: ${!!token}`);
+          
           if (!token) {
+            console.warn('🚫 SPAAuth: Unauthorized access. Redirecting to login.');
             // Redirect to login if not authenticated
             window.location.href = '/login';
             return false;
           }
+        } else {
+          console.log('🟢 SPAAuth: Current route is not protected.');
         }
   
         return true;
@@ -52,7 +64,8 @@
       // Login method
       async login(email, password) {
         try {
-          const response = await fetch('https://biteauth.vercel.app/auth/login', {
+          console.log('🔑 SPAAuth: Attempting login...');
+          const response = await fetch('/auth/login', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
@@ -63,6 +76,7 @@
           const data = await response.json();
   
           if (response.ok) {
+            console.log('✅ SPAAuth: Login successful');
             // Store token in localStorage
             localStorage.setItem('auth_token', data.token);
             
@@ -71,16 +85,18 @@
             
             return data;
           } else {
+            console.error('❌ SPAAuth: Login failed');
             throw new Error(data.message || 'Login failed');
           }
         } catch (error) {
-          console.error('Login error:', error);
+          console.error('❌ SPAAuth: Login error:', error);
           throw error;
         }
       }
   
       // Logout method
       logout() {
+        console.log('🚪 SPAAuth: Logging out');
         // Remove token
         localStorage.removeItem('auth_token');
         
@@ -90,12 +106,15 @@
   
       // Check if user is authenticated
       isAuthenticated() {
-        return !!localStorage.getItem('auth_token');
+        const isAuth = !!localStorage.getItem('auth_token');
+        console.log(`🔐 SPAAuth: Authentication check - ${isAuth ? 'Authenticated' : 'Not Authenticated'}`);
+        return isAuth;
       }
     }
   
     // Initialize the authentication system when DOM is loaded
     document.addEventListener('DOMContentLoaded', () => {
+      console.log('🌟 SPAAuth: DOM loaded. Initializing authentication...');
       // Expose the authentication instance globally
       window.spaAuth = new SPAAuth();
     });
