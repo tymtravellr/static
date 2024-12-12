@@ -1,5 +1,4 @@
 (function() {
-    // Authentication and Route Protection Class
     class SPAAuth {
       constructor() {
         this.protectedRoutes = [];
@@ -8,9 +7,8 @@
   
       // Initialize authentication
       initializeAuth() {
-        // Fetch protected routes from server
         this.fetchProtectedRoutes()
-          .then(() => this.setupRouteProtection())
+          .then(() => this.checkInitialRouteAccess())
           .catch(error => {
             console.error('Failed to set up route protection:', error);
           });
@@ -30,55 +28,25 @@
         }
       }
   
-      // Setup route protection
-      setupRouteProtection() {
-        // Store original pushState and replaceState methods
-        const originalPushState = history.pushState;
-        const originalReplaceState = history.replaceState;
+      // Check initial route access
+      checkInitialRouteAccess() {
+        const currentPath = window.location.pathname;
+        const isProtectedRoute = this.protectedRoutes.some(route => 
+          currentPath.startsWith(route)
+        );
   
-        // Override pushState
-        history.pushState = function(state, title, url) {
-          const result = originalPushState.apply(this, arguments);
-          window.dispatchEvent(new Event('pushstate'));
-          return result;
-        };
-  
-        // Override replaceState
-        history.replaceState = function(state, title, url) {
-          const result = originalReplaceState.apply(this, arguments);
-          window.dispatchEvent(new Event('replacestate'));
-          return result;
-        };
-  
-        // Check route protection on navigation events
-        const checkRouteProtection = () => {
-          const currentPath = window.location.pathname;
-          const isProtectedRoute = this.protectedRoutes.some(route => 
-            currentPath.startsWith(route)
-          );
-  
-          // Check authentication for protected routes
-          if (isProtectedRoute) {
-            const token = localStorage.getItem('auth_token');
-            
-            if (!token) {
-              // Redirect to login if not authenticated
-              window.history.replaceState(null, '', '/login');
-              window.location.href = '/login';
-              return false;
-            }
+        // Check authentication for protected routes
+        if (isProtectedRoute) {
+          const token = localStorage.getItem('auth_token');
+          
+          if (!token) {
+            // Redirect to login if not authenticated
+            window.location.href = '/login';
+            return false;
           }
+        }
   
-          return true;
-        };
-  
-        // Add event listeners for route changes
-        window.addEventListener('pushstate', checkRouteProtection);
-        window.addEventListener('replacestate', checkRouteProtection);
-        window.addEventListener('popstate', checkRouteProtection);
-  
-        // Initial page load check
-        checkRouteProtection();
+        return true;
       }
   
       // Login method
