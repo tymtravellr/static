@@ -19,7 +19,7 @@
       // Fetch protected routes from server
       async fetchProtectedRoutes() {
         try {
-          const response = await fetch('/api/protected-routes');
+          const response = await fetch('https://biteauth.vercel.app/api/protected-routes');
           if (!response.ok) {
             throw new Error('Failed to fetch protected routes');
           }
