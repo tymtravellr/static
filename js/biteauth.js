@@ -22,7 +22,7 @@
       async fetchProtectedRoutes() {
         try {
           console.log('🔍 SPAAuth: Fetching protected routes...');
-          const response = await fetch('/api/protected-routes');
+          const response = await fetch('https://biteauth.vercel.app/api/protected-routes');
           if (!response.ok) {
             throw new Error('Failed to fetch protected routes');
           }
@@ -65,7 +65,7 @@
       async login(email, password) {
         try {
           console.log('🔑 SPAAuth: Attempting login...');
-          const response = await fetch('/auth/login', {
+          const response = await fetch('https://biteauth.vercel.app/auth/login', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
