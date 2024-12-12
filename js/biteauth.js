@@ -84,7 +84,7 @@
       // Login method
       async login(email, password) {
         try {
-          const response = await fetch('/auth/login', {
+          const response = await fetch('https://biteauth.vercel.app/auth/login', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
