@@ -1,96 +1,134 @@
-function createAuth() {
-    class Auth {
+(function() {
+    // Authentication and Route Protection Class
+    class SPAAuth {
       constructor() {
-        this.storagePrefix = 'auth_';
+        this.protectedRoutes = [];
+        this.initializeAuth();
       }
   
-      // Local Storage Wrapper
-      _setItem(key, value) {
-        localStorage.setItem(`${this.storagePrefix}${key}`, JSON.stringify(value));
-      }
-  
-      _getItem(key) {
-        const item = localStorage.getItem(`${this.storagePrefix}${key}`);
-        return item ? JSON.parse(item) : null;
-      }
-  
-      _removeItem(key) {
-        localStorage.removeItem(`${this.storagePrefix}${key}`);
-      }
-  
-      // Authentication Methods
-      async signup(email, password) {
-        try {
-          const response = await fetch('/api/auth/signup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+      // Initialize authentication
+      initializeAuth() {
+        // Fetch protected routes from server
+        this.fetchProtectedRoutes()
+          .then(() => this.setupRouteProtection())
+          .catch(error => {
+            console.error('Failed to set up route protection:', error);
           });
+      }
   
-          const data = await response.json();
-  
+      // Fetch protected routes from server
+      async fetchProtectedRoutes() {
+        try {
+          const response = await fetch('/api/protected-routes');
           if (!response.ok) {
-            throw new Error(data.error || 'Signup failed');
+            throw new Error('Failed to fetch protected routes');
           }
-  
-          this._setItem('token', data.token);
-          this._setItem('user', data.user);
-  
-          return data;
+          this.protectedRoutes = await response.json();
         } catch (error) {
-          console.error('Signup error:', error);
-          throw error;
+          console.error('Error fetching protected routes:', error);
+          this.protectedRoutes = [];
         }
       }
   
+      // Setup route protection
+      setupRouteProtection() {
+        // Store original pushState and replaceState methods
+        const originalPushState = history.pushState;
+        const originalReplaceState = history.replaceState;
+  
+        // Override pushState
+        history.pushState = function(state, title, url) {
+          const result = originalPushState.apply(this, arguments);
+          window.dispatchEvent(new Event('pushstate'));
+          return result;
+        };
+  
+        // Override replaceState
+        history.replaceState = function(state, title, url) {
+          const result = originalReplaceState.apply(this, arguments);
+          window.dispatchEvent(new Event('replacestate'));
+          return result;
+        };
+  
+        // Check route protection on navigation events
+        const checkRouteProtection = () => {
+          const currentPath = window.location.pathname;
+          const isProtectedRoute = this.protectedRoutes.some(route => 
+            currentPath.startsWith(route)
+          );
+  
+          // Check authentication for protected routes
+          if (isProtectedRoute) {
+            const token = localStorage.getItem('auth_token');
+            
+            if (!token) {
+              // Redirect to login if not authenticated
+              window.history.replaceState(null, '', '/login');
+              window.location.href = '/login';
+              return false;
+            }
+          }
+  
+          return true;
+        };
+  
+        // Add event listeners for route changes
+        window.addEventListener('pushstate', checkRouteProtection);
+        window.addEventListener('replacestate', checkRouteProtection);
+        window.addEventListener('popstate', checkRouteProtection);
+  
+        // Initial page load check
+        checkRouteProtection();
+      }
+  
+      // Login method
       async login(email, password) {
         try {
-          const response = await fetch('/api/auth/login', {
+          const response = await fetch('/auth/login', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json'
+            },
             body: JSON.stringify({ email, password })
           });
   
           const data = await response.json();
   
-          if (!response.ok) {
-            throw new Error(data.error || 'Login failed');
+          if (response.ok) {
+            // Store token in localStorage
+            localStorage.setItem('auth_token', data.token);
+            
+            // Redirect to dashboard or home
+            window.location.href = '/dashboard';
+            
+            return data;
+          } else {
+            throw new Error(data.message || 'Login failed');
           }
-  
-          this._setItem('token', data.token);
-          this._setItem('user', data.user);
-  
-          return data;
         } catch (error) {
           console.error('Login error:', error);
           throw error;
         }
       }
   
+      // Logout method
       logout() {
-        this._removeItem('token');
-        this._removeItem('user');
+        // Remove token
+        localStorage.removeItem('auth_token');
+        
+        // Redirect to login
         window.location.href = '/login';
       }
   
-      getToken() {
-        return this._getItem('token');
-      }
-  
-      getUser() {
-        return this._getItem('user');
-      }
-  
-      // Simple page access check
+      // Check if user is authenticated
       isAuthenticated() {
-        return !!this.getToken();
+        return !!localStorage.getItem('auth_token');
       }
     }
   
-    // Return an instance of Auth
-    return new Auth();
-  }
-  
-  // Usage examples:
-  // Option 1: Global exposure
-  window.auth = createAuth();
+    // Initialize the authentication system when DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      // Expose the authentication instance globally
+      window.spaAuth = new SPAAuth();
+    });
+  })();
