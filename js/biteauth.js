@@ -3,7 +3,33 @@
       constructor() {
         console.log('🔐 SPAAuth: Initializing authentication system');
         this.protectedRoutes = [];
+        
+        // Patch history methods to trigger route checks
+        this.patchHistoryMethods();
+        
         this.initializeAuth();
+      }
+  
+      // Patch history methods to trigger route checks
+      patchHistoryMethods() {
+        const originalPushState = history.pushState;
+        const originalReplaceState = history.replaceState;
+        const self = this;
+  
+        history.pushState = function() {
+          const result = originalPushState.apply(this, arguments);
+          self.checkRouteAccess();
+          return result;
+        };
+  
+        history.replaceState = function() {
+          const result = originalReplaceState.apply(this, arguments);
+          self.checkRouteAccess();
+          return result;
+        };
+  
+        // Add event listener for popstate (back/forward navigation)
+        window.addEventListener('popstate', () => this.checkRouteAccess());
       }
   
       // Initialize authentication
@@ -11,7 +37,7 @@
         this.fetchProtectedRoutes()
           .then(() => {
             console.log('🌐 SPAAuth: Protected routes loaded:', this.protectedRoutes);
-            this.checkInitialRouteAccess();
+            this.checkRouteAccess();
           })
           .catch(error => {
             console.error('❌ SPAAuth: Failed to set up route protection:', error);
@@ -33,8 +59,8 @@
         }
       }
   
-      // Check initial route access
-      checkInitialRouteAccess() {
+      // Check route access
+      checkRouteAccess() {
         const currentPath = window.location.pathname;
         console.log(`📍 SPAAuth: Checking access for current path: ${currentPath}`);
   
