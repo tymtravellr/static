@@ -6,7 +6,7 @@
         '/settings',
         '/account'
     ];
-
+console.log("script is working")
     const AuthChecker = {
         // Check if current page is protected
         isProtectedRoute: function() {
@@ -46,13 +46,13 @@
 
         // Redirect to login page
         redirectToLogin: function() {
-            // Preserve current path for potential post-login redirect
             const currentPath = encodeURIComponent(window.location.pathname);
             window.location.href = `/login?redirect=${currentPath}`;
         },
 
-        // Initial and continuous authentication check
-        checkAccess: function() {
+        // Immediate and aggressive authentication check
+        checkAccessNow: function() {
+            // Immediate check on page load
             if (this.isProtectedRoute() && !this.isAuthenticated()) {
                 this.redirectToLogin();
                 return false;
@@ -60,34 +60,58 @@
             return true;
         },
 
-        // Intercept and modify navigation
+        // Comprehensive navigation interception
         interceptNavigation: function() {
-            // Override pushState to check authentication
+            const self = this;
+
+            // Override all potential navigation methods
             const originalPushState = history.pushState;
-            history.pushState = (...args) => {
+            const originalReplaceState = history.replaceState;
+
+            history.pushState = function(...args) {
                 const [state, title, url] = args;
                 
                 // Check if the new route is protected
                 const tempAnchor = document.createElement('a');
                 tempAnchor.href = url || window.location.href;
                 
-                if (this.isProtectedRoute(tempAnchor.pathname) && !this.isAuthenticated()) {
-                    this.redirectToLogin();
+                if (self.isProtectedRoute(tempAnchor.pathname) && !self.isAuthenticated()) {
+                    self.redirectToLogin();
                     return;
                 }
                 
                 originalPushState.apply(history, args);
             };
 
-            // Intercept popstate to re-check authentication
-            const originalPopStateHandler = window.onpopstate;
-            window.onpopstate = (event) => {
-                if (!this.checkAccess()) {
+            history.replaceState = function(...args) {
+                const [state, title, url] = args;
+                
+                // Check if the new route is protected
+                const tempAnchor = document.createElement('a');
+                tempAnchor.href = url || window.location.href;
+                
+                if (self.isProtectedRoute(tempAnchor.pathname) && !self.isAuthenticated()) {
+                    self.redirectToLogin();
                     return;
                 }
                 
-                if (originalPopStateHandler) {
-                    originalPopStateHandler.call(window, event);
+                originalReplaceState.apply(history, args);
+            };
+
+            // Intercept all navigation events
+            const originalAddEventListener = window.addEventListener;
+            window.addEventListener = function(type, listener, options) {
+                if (type === 'popstate') {
+                    const wrappedListener = function(event) {
+                        if (self.isProtectedRoute() && !self.isAuthenticated()) {
+                            self.redirectToLogin();
+                            return;
+                        }
+                        listener.call(this, event);
+                    };
+                    originalAddEventListener.call(window, type, wrappedListener, options);
+                } else {
+                    originalAddEventListener.call(window, type, listener, options);
                 }
             };
         },
@@ -95,14 +119,29 @@
         // Initialize protection
         init: function() {
             // Immediate check
-            if (!this.checkAccess()) return;
+            this.checkAccessNow();
 
-            // Intercept navigation methods
+            // Intercept all navigation methods
             this.interceptNavigation();
+
+            // Additional check for any async route changes
+            const originalFetch = window.fetch;
+            window.fetch = function(...args) {
+                const [url] = args;
+                const tempAnchor = document.createElement('a');
+                tempAnchor.href = url;
+                
+                if (self.isProtectedRoute(tempAnchor.pathname) && !self.isAuthenticated()) {
+                    self.redirectToLogin();
+                    return Promise.reject(new Error('Unauthorized'));
+                }
+                
+                return originalFetch.apply(this, args);
+            };
         }
     };
 
-    // Run authentication check as early as possible
+    // Run authentication check immediately
     AuthChecker.init();
 
     // Expose for manual checks if needed
