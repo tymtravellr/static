@@ -52,17 +52,48 @@
             window.location.href = `/login?redirect=${currentPath}`;
         },
 
+        // Monkey patch history methods to intercept route changes
+        patchHistoryMethods: function() {
+            const originalPushState = history.pushState;
+            const originalReplaceState = history.replaceState;
+            const self = this;
+
+            history.pushState = function() {
+                originalPushState.apply(history, arguments);
+                self.checkAccess();
+            };
+
+            history.replaceState = function() {
+                originalReplaceState.apply(history, arguments);
+                self.checkAccess();
+            };
+
+            // Intercept popstate for back/forward navigation
+            window.addEventListener('popstate', () => {
+                self.checkAccess();
+            });
+        },
+
         // Main authentication check
         checkAccess: function() {
             if (this.isProtectedRoute() && !this.isAuthenticated()) {
                 this.redirectToLogin();
             }
+        },
+
+        // Initialize protection
+        init: function() {
+            // Initial check
+            this.checkAccess();
+            
+            // Patch history methods for SPA routing
+            this.patchHistoryMethods();
         }
     };
 
     // Run authentication check when page loads
     window.addEventListener('DOMContentLoaded', () => {
-        AuthChecker.checkAccess();
+        AuthChecker.init();
     });
 
     // Optional: Expose for manual checks if needed
