@@ -7,7 +7,6 @@
         '/account'
     ];
 
-    // Authentication Checker
     const AuthChecker = {
         // Check if current page is protected
         isProtectedRoute: function() {
@@ -52,50 +51,60 @@
             window.location.href = `/login?redirect=${currentPath}`;
         },
 
-        // Monkey patch history methods to intercept route changes
-        patchHistoryMethods: function() {
-            const originalPushState = history.pushState;
-            const originalReplaceState = history.replaceState;
-            const self = this;
-
-            history.pushState = function() {
-                originalPushState.apply(history, arguments);
-                self.checkAccess();
-            };
-
-            history.replaceState = function() {
-                originalReplaceState.apply(history, arguments);
-                self.checkAccess();
-            };
-
-            // Intercept popstate for back/forward navigation
-            window.addEventListener('popstate', () => {
-                self.checkAccess();
-            });
-        },
-
-        // Main authentication check
+        // Initial and continuous authentication check
         checkAccess: function() {
             if (this.isProtectedRoute() && !this.isAuthenticated()) {
                 this.redirectToLogin();
+                return false;
             }
+            return true;
+        },
+
+        // Intercept and modify navigation
+        interceptNavigation: function() {
+            // Override pushState to check authentication
+            const originalPushState = history.pushState;
+            history.pushState = (...args) => {
+                const [state, title, url] = args;
+                
+                // Check if the new route is protected
+                const tempAnchor = document.createElement('a');
+                tempAnchor.href = url || window.location.href;
+                
+                if (this.isProtectedRoute(tempAnchor.pathname) && !this.isAuthenticated()) {
+                    this.redirectToLogin();
+                    return;
+                }
+                
+                originalPushState.apply(history, args);
+            };
+
+            // Intercept popstate to re-check authentication
+            const originalPopStateHandler = window.onpopstate;
+            window.onpopstate = (event) => {
+                if (!this.checkAccess()) {
+                    return;
+                }
+                
+                if (originalPopStateHandler) {
+                    originalPopStateHandler.call(window, event);
+                }
+            };
         },
 
         // Initialize protection
         init: function() {
-            // Initial check
-            this.checkAccess();
-            
-            // Patch history methods for SPA routing
-            this.patchHistoryMethods();
+            // Immediate check
+            if (!this.checkAccess()) return;
+
+            // Intercept navigation methods
+            this.interceptNavigation();
         }
     };
 
-    // Run authentication check when page loads
-    window.addEventListener('DOMContentLoaded', () => {
-        AuthChecker.init();
-    });
+    // Run authentication check as early as possible
+    AuthChecker.init();
 
-    // Optional: Expose for manual checks if needed
+    // Expose for manual checks if needed
     window.AuthChecker = AuthChecker;
 })();
